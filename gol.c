@@ -36,7 +36,9 @@ void bInitGrid(uint8_t**);
 void bPrintGrid(uint8_t**);
 void bPrintChar(uint8_t, uint8_t);
 void bUpdateGrid(uint8_t**, uint8_t**);
-
+uint8_t bCountNeighbours(uint8_t**, uint8_t, uint8_t);
+uint8_t bGetCellStatus(uint8_t**, uint8_t, uint8_t);
+void bSetCellStatus(uint8_t**, uint8_t, uint8_t, uint8_t);
 
 int main() {
     int grid[ROWS][COLS];
@@ -47,20 +49,17 @@ int main() {
     uint8_t** foregroundbuffer = workingbuffer1; // display this data
     uint8_t** backgroundbuffer = workingbuffer1; // work on this data
 
-    // Initialize the grid with dead cells (0s) and one cell with a live organism (1) for testing
-    initGrid(grid);
     // Initialize the grid with random values
+    bInitGrid(foregroundbuffer);
 
     // Print initial state
-    printf("Initial Grid:\n");
-    printGrid(grid);
+    bPrintGrid(foregroundbuffer);
 
     // Update the grid to the next generation
-    updateGrid(grid);
+    bUpdateGrid(foregroundbuffer, backgroundbuffer);
 
     // Print the updated grid
-    printf("\nUpdated Grid:\n");
-    printGrid(grid);
+    bPrintGrid(backgroundbuffer);
 
     return 0;
 }
@@ -85,15 +84,6 @@ uint8_t** allocateMemory() {
     return allocmem;
 }
 
-// Function to initialize the grid with dead cells
-void initGrid(int grid[ROWS][COLS]) {
-    for (int i = 0; i < ROWS; i++) {
-        for (int j = 0; j < COLS; j++) {
-            grid[i][j] = rand() % 2; // Randomly initialize cells to either 0 or 1
-        }
-    }
-}
-
 // Initialize the grid with random values
 void bInitGrid(uint8_t** bgrid) { 
     int bytecols = COLS/8 + (COLS % 8 == 0) ? 0 : 1; // int division truncates (rounds towards 0);
@@ -101,16 +91,6 @@ void bInitGrid(uint8_t** bgrid) {
     for (int col = 0; col < bytecols; ++col)
         for (int row = 0; row < ROWS; ++row)
             bgrid[col][row] = rand() % 0b11111111; // Randomly initialize BITS (cells) to either 0 or 1
-}
-
-// Function to print the current state of the grid
-void printGrid(int grid[ROWS][COLS]) {
-    for (int i = 0; i < ROWS; i++) {
-        for (int j = 0; j < COLS; j++) {
-            printf("%d ", grid[i][j]);
-        }
-        printf("\n");
-    }
 }
 
 // Print the current state of the world
@@ -130,7 +110,7 @@ void bPrintGrid(uint8_t** bgrid) {
 // Print first nbbits from specified byte
 void bPrintChar(uint8_t val, uint8_t nbbits=8) {
     while (nbbits > 0) {
-        if (val & 0b10000000) // check "first" cell (bit)
+        if (val & 0b10000000) // check the "first" cell (bit)
             printf("#"); // bit is set, cell is alive
         else
             printf(" "); // bit is not set, cell is dead
@@ -139,52 +119,60 @@ void bPrintChar(uint8_t val, uint8_t nbbits=8) {
     }
 }
 
-// Function to update the grid to the next generation
-void updateGrid(int grid[ROWS][COLS]) {
-    int newGrid[ROWS][COLS];
-
-    for (int i = 0; i < ROWS; i++) {
-        for (int j = 0; j < COLS; j++) {
-            int liveNeighbors = countLiveNeighbors(grid, i, j);
-
-            if (grid[i][j] == 1) {
-                // Any live cell with two or three neighbors survives.
-                if (liveNeighbors == 2 || liveNeighbors == 3) {
-                    newGrid[i][j] = 1;
-                } else {
-                    newGrid[i][j] = 0;
-                }
-            } else {
-                // Any dead cell with exactly three neighbors becomes a live cell.
-                if (liveNeighbors == 3) {
-                    newGrid[i][j] = 1;
-                } else {
-                    newGrid[i][j] = 0;
-                }
-            }
-        }
-    }
-
-    // Copy the new grid to the old grid
-    memcpy(grid, newGrid, sizeof(int) * ROWS * COLS);
-}
-
-// Function to count live neighbors around a cell
-int countLiveNeighbors(int grid[ROWS][COLS], int row, int col) {
-    int count = 0;
-    for (int i = -1; i <= 1; i++) {
-        for (int j = -1; j <= 1; j++) {
-            if (i == 0 && j == 0) continue; // Skip the cell itself
-            int newRow = row + i;
-            int newCol = col + j;
-            if (newRow >= 0 && newRow < ROWS && newCol >= 0 && newCol < COLS) {
-                count += grid[newRow][newCol];
-            }
-        }
-    }
-    return count;
-}
-
 void bUpdateGrid(uint8_t** currbgrid, uint8_t** nextbgrid) {
+    uint8_t liveNeighbors = 0;
+    for (uint8_t row = 0; row < ROWS; ++row) {
+        for (uint8_t col = 0; col < COLS; ++col) {
+            liveNeighbors = bCountNeighborus(currbgrid, col, row);
+
+            if (bGetCellStatus(currbgrid, i, j)) { // if alive
+                if (liveNeighbors == 2 || liveNeighbors == 3) continue; // do nothing
+                else bSetCellStatus(nextbgrid, col, row, 0); // make dead
+            } else // if dead
+                if (liveNeighbors == 3) bSetCellStatus(nextbgrid, col, row, 1); // make alive
+        }
+    }
+}
+
+uint8_t bCountNeighbours(uint8_t** bgrid, uint8_t _col, uint8_t _row) {
+    uint8_t nbrs = 0; // neighbour count
+    for (uint8_t i = -1; i <= 1; ++i) {
+        for (uint8_t j = -1; j <= 1; ++j) {
+            if (i == 0 && j == 0) continue; // Skip the cell itself
+            if (bGetCellStatus(bgrid, _col + i, _row + j)) ++nbrs; // out of bounds checked inside the function
+        }
+    }
+    return nbrs;
+}
+
+uint8_t bGetCellStatus(uint8_t** bgrid, uint8_t _col, uint8_t _row) {
+    if (_col < 0 || _col > COLS - 1 || _row < 0 || _row > ROWS - 1) return 0; // out of bounds
+    switch (_col % 8) {
+        case 0: return bgrid[_col/8][_row] & CELL0;
+        case 1: return bgrid[_col/8][_row] & CELL1;
+        case 2: return bgrid[_col/8][_row] & CELL2;
+        case 3: return bgrid[_col/8][_row] & CELL3;
+        case 4: return bgrid[_col/8][_row] & CELL4;
+        case 5: return bgrid[_col/8][_row] & CELL5;
+        case 6: return bgrid[_col/8][_row] & CELL6;
+        case 7: return bgrid[_col/8][_row] & CELL7;
+    }
+}
+
+void bSetCellStatus(uint8_t** bgrid, uint8_t _col, uint8_t _row, uint8_t status) {
+    uint8_t cell = 0;
     
+    switch (_col % 8) {
+        case 0: cell = CELL0; break;
+        case 1: cell = CELL1; break;
+        case 2: cell = CELL2; break;
+        case 3: cell = CELL3; break;
+        case 4: cell = CELL4; break;
+        case 5: cell = CELL5; break;
+        case 6: cell = CELL6; break;
+        case 7: cell = CELL7; break;
+    }
+    
+    if (status) bgrid[_col/8][_row] = bgrid[_col/8][_row] | cell; // make alive
+    else bgrid[_col/8][_row] = bgrid[_col/8][_row] & (~cell); // make dead
 }
