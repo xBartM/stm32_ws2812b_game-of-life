@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
+#include <unistd.h>
 
 #warning "jak sie wywali to pewnie (bInitGrid) zamienione rows i cols"
 
@@ -15,24 +17,19 @@
 #endif
 
 // Bit definitions
-#define CELL0  0b10000000
-#define CELL1  0b01000000
-#define CELL2  0b00100000
-#define CELL3  0b00010000
-#define CELL4  0b00001000
-#define CELL5  0b00000100
-#define CELL6  0b00000010
-#define CELL7  0b00000001
+#define CELL0 0x80 // 0b10000000
+#define CELL1 0x40 // 0b01000000
+#define CELL2 0x20 // 0b00100000
+#define CELL3 0x10 // 0b00010000
+#define CELL4 0x08 // 0b00001000
+#define CELL5 0x04 // 0b00000100
+#define CELL6 0x02 // 0b00000010
+#define CELL7 0x01 // 0b00000001
 
 // Function prototypes
-void initGrid(int grid[ROWS][COLS]);
-void printGrid(int grid[ROWS][COLS]);
-void updateGrid(int grid[ROWS][COLS]);
-
-
 uint8_t** allocateMemory(); 
 
-void bInitGrid(uint8_t**);
+void bInitGrid(uint8_t**, uint8_t**);
 void bPrintGrid(uint8_t**);
 void bPrintChar(uint8_t, uint8_t);
 void bUpdateGrid(uint8_t**, uint8_t**);
@@ -41,26 +38,33 @@ uint8_t bGetCellStatus(uint8_t**, uint8_t, uint8_t);
 void bSetCellStatus(uint8_t**, uint8_t, uint8_t, uint8_t);
 
 int main() {
-    int grid[ROWS][COLS];
-    
+
     // Initialize memory
     uint8_t** const workingbuffer1 = allocateMemory();
     uint8_t** const workingbuffer2 = allocateMemory();
-    uint8_t** foregroundbuffer = workingbuffer1; // display this data
-    uint8_t** backgroundbuffer = workingbuffer1; // work on this data
 
     // Initialize the grid with random values
-    bInitGrid(foregroundbuffer);
+    bInitGrid(workingbuffer1, workingbuffer2);
 
-    // Print initial state
-    bPrintGrid(foregroundbuffer);
+    while (1) { // main loop
+        // Print initial state
+        printf("\033[%d;%dH", 0, 0); // go to terminals (0,0)
+        usleep(100*1000);
+        bPrintGrid(workingbuffer1);
 
-    // Update the grid to the next generation
-    bUpdateGrid(foregroundbuffer, backgroundbuffer);
+        // Update the grid to the next generation
+        bUpdateGrid(workingbuffer1, workingbuffer2);
 
-    // Print the updated grid
-    bPrintGrid(backgroundbuffer);
+        // Print the updated grid
+        printf("\033[%d;%dH", 0, 0); // go to terminals (0,0)
+        usleep(100*1000);
+        bPrintGrid(workingbuffer2);
+        
+        // Update the grid to the next generation
+        bUpdateGrid(workingbuffer2, workingbuffer1);
 
+    }
+    
     return 0;
 }
 
@@ -75,8 +79,9 @@ uint8_t** allocateMemory() {
      *    2 0b00000000  0b0000xxxx          *
      *    3 0b00000000  0b0000xxxx          *
      ****************************************/
-    int bytecols = COLS/8 + (COLS % 8 == 0) ? 0 : 1; // int division truncates (rounds towards 0);
-    
+    int bytecols = COLS/8; // int division truncates (rounds towards 0)
+    if (COLS % 8 != 0) ++bytecols;
+
     uint8_t** allocmem = malloc(bytecols * sizeof(uint8_t*)); // alloc an array of pointers to specific columns
     for (int col=0; col < bytecols; ++col) // iterate over those columns
         allocmem[col] = malloc(ROWS * sizeof(uint8_t)); // alloc an array of uint8_ts within a column
@@ -85,12 +90,15 @@ uint8_t** allocateMemory() {
 }
 
 // Initialize the grid with random values
-void bInitGrid(uint8_t** bgrid) { 
-    int bytecols = COLS/8 + (COLS % 8 == 0) ? 0 : 1; // int division truncates (rounds towards 0);
+void bInitGrid(uint8_t** bgrid1, uint8_t** bgrid2) { 
+    int bytecols = COLS/8; // int division truncates (rounds towards 0)
+    if (COLS % 8 != 0) ++bytecols;
     
     for (int col = 0; col < bytecols; ++col)
-        for (int row = 0; row < ROWS; ++row)
-            bgrid[col][row] = rand() % 0b11111111; // Randomly initialize BITS (cells) to either 0 or 1
+        for (int row = 0; row < ROWS; ++row) {
+            bgrid1[col][row] = rand() % 0xFF; // 0b11111111; // Randomly initialize BITS (cells) to either 0 or 1
+            bgrid2[col][row] = bgrid1[col][row];    
+        }
 }
 
 // Print the current state of the world
@@ -100,17 +108,17 @@ void bPrintGrid(uint8_t** bgrid) {
     
     for (int row = 0; row < ROWS; ++row) {
         for (int col = 0; col < fullbytecols; ++col) {
-            bPrintChar(bgrid[col][row]); // print all full byte columns for a given row
+            bPrintChar(bgrid[col][row], 8); // print all full byte columns for a given row
         }
-        bPrintChar(bgrid[col][row], restbytecols); // print partial byte columns for a given row
+        if (restbytecols != 0) bPrintChar(bgrid[fullbytecols][row], restbytecols); // print partial byte columns for a given row
         printf("\n");
     }
 }
 
 // Print first nbbits from specified byte
-void bPrintChar(uint8_t val, uint8_t nbbits=8) {
+void bPrintChar(uint8_t val, uint8_t nbbits) {
     while (nbbits > 0) {
-        if (val & 0b10000000) // check the "first" cell (bit)
+        if (val & CELL0) // check the "first" cell (bit)
             printf("#"); // bit is set, cell is alive
         else
             printf(" "); // bit is not set, cell is dead
@@ -123,21 +131,22 @@ void bUpdateGrid(uint8_t** currbgrid, uint8_t** nextbgrid) {
     uint8_t liveNeighbors = 0;
     for (uint8_t row = 0; row < ROWS; ++row) {
         for (uint8_t col = 0; col < COLS; ++col) {
-            liveNeighbors = bCountNeighborus(currbgrid, col, row);
+            liveNeighbors = bCountNeighbours(currbgrid, col, row);
 
-            if (bGetCellStatus(currbgrid, i, j)) { // if alive
-                if (liveNeighbors == 2 || liveNeighbors == 3) continue; // do nothing
+            if (bGetCellStatus(currbgrid, col, row)) { // if alive
+                if (liveNeighbors == 2 || liveNeighbors == 3) bSetCellStatus(nextbgrid, col, row, 1); // make alive
                 else bSetCellStatus(nextbgrid, col, row, 0); // make dead
             } else // if dead
                 if (liveNeighbors == 3) bSetCellStatus(nextbgrid, col, row, 1); // make alive
+                else bSetCellStatus(nextbgrid, col, row, 0); // make dead
         }
     }
 }
 
 uint8_t bCountNeighbours(uint8_t** bgrid, uint8_t _col, uint8_t _row) {
     uint8_t nbrs = 0; // neighbour count
-    for (uint8_t i = -1; i <= 1; ++i) {
-        for (uint8_t j = -1; j <= 1; ++j) {
+    for (int8_t i = -1; i <= 1; ++i) {
+        for (int8_t j = -1; j <= 1; ++j) {
             if (i == 0 && j == 0) continue; // Skip the cell itself
             if (bGetCellStatus(bgrid, _col + i, _row + j)) ++nbrs; // out of bounds checked inside the function
         }
@@ -146,7 +155,7 @@ uint8_t bCountNeighbours(uint8_t** bgrid, uint8_t _col, uint8_t _row) {
 }
 
 uint8_t bGetCellStatus(uint8_t** bgrid, uint8_t _col, uint8_t _row) {
-    if (_col < 0 || _col > COLS - 1 || _row < 0 || _row > ROWS - 1) return 0; // out of bounds
+    if (_col > COLS - 1 || _row > ROWS - 1) return 0; // out of bounds (_col/_row == -1 -> 255)
     switch (_col % 8) {
         case 0: return bgrid[_col/8][_row] & CELL0;
         case 1: return bgrid[_col/8][_row] & CELL1;
@@ -157,6 +166,7 @@ uint8_t bGetCellStatus(uint8_t** bgrid, uint8_t _col, uint8_t _row) {
         case 6: return bgrid[_col/8][_row] & CELL6;
         case 7: return bgrid[_col/8][_row] & CELL7;
     }
+    return 0; // this shouldn't be reached
 }
 
 void bSetCellStatus(uint8_t** bgrid, uint8_t _col, uint8_t _row, uint8_t status) {
@@ -173,6 +183,6 @@ void bSetCellStatus(uint8_t** bgrid, uint8_t _col, uint8_t _row, uint8_t status)
         case 7: cell = CELL7; break;
     }
     
-    if (status) bgrid[_col/8][_row] = bgrid[_col/8][_row] | cell; // make alive
-    else bgrid[_col/8][_row] = bgrid[_col/8][_row] & (~cell); // make dead
+    if (status) bgrid[_col/8][_row] |= cell; // make alive
+    else bgrid[_col/8][_row] &= (~cell); // make dead
 }
