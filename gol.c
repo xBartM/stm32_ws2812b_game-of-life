@@ -37,7 +37,7 @@ uint8_t bGetCellStatus(uint8_t**, uint8_t, uint8_t);
 void bSetCellStatus(uint8_t**, uint8_t, uint8_t, uint8_t);
 
 int main() {
-    int gens = 5;
+    
     // Initialize memory
     uint8_t** const workingbuffer1 = allocateMemory();
     uint8_t** const workingbuffer2 = allocateMemory();
@@ -45,7 +45,7 @@ int main() {
     // Initialize the grid with random values
     bInitGrid(workingbuffer1);
 
-    while (1){//(gens-- > 0) { // main loop
+    while (1) { // main loop
         // Print initial state
         printf("\033[%d;%dH", 0, 0); // go to terminals (0,0)
         usleep(100*1000);
