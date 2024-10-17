@@ -2,10 +2,10 @@
 CC = gcc
 
 # Compiler flags
-CFLAGS = -Wall -Wextra -O2
+CFLAGS = -Wall -Wextra -pedantic -O2
 
 # Target executable name
-TARGET = gol
+TARGET = gol.out
 
 # Source files
 SRCS = gol.c

@@ -5,8 +5,6 @@
 #include <limits.h>
 #include <unistd.h>
 
-#warning "jak sie wywali to pewnie (bInitGrid) zamienione rows i cols"
-
 // Constants for the game
 #define COLS 32
 #define ROWS 16
@@ -27,9 +25,10 @@
 #define CELL7 0x01 // 0b00000001
 
 // Function prototypes
-uint8_t** allocateMemory(); 
+uint8_t** allocateMemory();
+void freeMemory(uint8_t**);
 
-void bInitGrid(uint8_t**, uint8_t**);
+void bInitGrid(uint8_t**);
 void bPrintGrid(uint8_t**);
 void bPrintChar(uint8_t, uint8_t);
 void bUpdateGrid(uint8_t**, uint8_t**);
@@ -38,15 +37,15 @@ uint8_t bGetCellStatus(uint8_t**, uint8_t, uint8_t);
 void bSetCellStatus(uint8_t**, uint8_t, uint8_t, uint8_t);
 
 int main() {
-
+    int gens = 5;
     // Initialize memory
     uint8_t** const workingbuffer1 = allocateMemory();
     uint8_t** const workingbuffer2 = allocateMemory();
 
     // Initialize the grid with random values
-    bInitGrid(workingbuffer1, workingbuffer2);
+    bInitGrid(workingbuffer1);
 
-    while (1) { // main loop
+    while (1){//(gens-- > 0) { // main loop
         // Print initial state
         printf("\033[%d;%dH", 0, 0); // go to terminals (0,0)
         usleep(100*1000);
@@ -65,10 +64,14 @@ int main() {
 
     }
     
+    // Free the working memory
+    freeMemory(workingbuffer1);
+    freeMemory(workingbuffer2);
+    
     return 0;
 }
 
-// Allocate memory for World Grid
+// Allocate the memory for World Grid
 uint8_t** allocateMemory() {
     /****************************************
      * sample representation of 12x4 grid:  *
@@ -89,16 +92,24 @@ uint8_t** allocateMemory() {
     return allocmem;
 }
 
+// Free the memory
+void freeMemory(uint8_t** allocdmem) {
+    int bytecols = COLS/8; // int division truncates (rounds towards 0)
+    if (COLS % 8 != 0) ++bytecols;
+
+    for (int col=0; col < bytecols; ++col) // iterate over columns
+        free(allocdmem[col]); // free allocd memory within a column
+    free(allocdmem); // free an array of pointers to specific columns
+}
+
 // Initialize the grid with random values
-void bInitGrid(uint8_t** bgrid1, uint8_t** bgrid2) { 
+void bInitGrid(uint8_t** bgrid1) { 
     int bytecols = COLS/8; // int division truncates (rounds towards 0)
     if (COLS % 8 != 0) ++bytecols;
     
     for (int col = 0; col < bytecols; ++col)
-        for (int row = 0; row < ROWS; ++row) {
+        for (int row = 0; row < ROWS; ++row)
             bgrid1[col][row] = rand() % 0xFF; // 0b11111111; // Randomly initialize BITS (cells) to either 0 or 1
-            bgrid2[col][row] = bgrid1[col][row];    
-        }
 }
 
 // Print the current state of the world
