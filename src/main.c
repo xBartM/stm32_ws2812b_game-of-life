@@ -70,7 +70,7 @@ uint8_t translateAddress(uint8_t, uint8_t);
 
 // Global variables
 static const struct led_rgb colors[] = {
-	RGB(0xff, 0x00, 0x00), /* red */
+	RGB(0x08, 0x00, 0x00), /* red */
 	RGB(0x00, 0x08, 0x00), /* green */
 	RGB(0x00, 0x00, 0x08), /* blue */
 	RGB(0x00, 0x00, 0x00)  /* off */
@@ -90,7 +90,7 @@ int main() {
     memset(&pixels, 0x00, sizeof(pixels));
     
     while (1) {
-    //break;
+    break;
         for (uint8_t row = 0; row < ROWS; ++row)
             for (uint8_t col = 0; col < COLS; ++col) {
                 memcpy(&pixels[translateAddress(col, row)], &colors[0], sizeof(struct led_rgb));
