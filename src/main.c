@@ -19,13 +19,13 @@
 #error Unable to determine length of LED strip
 #endif
 
-#define DELAY_TIME K_MSEC(100) /* maybe it should be 50 or less - reset signal for WS2812 */
+#define DELAY_TIME K_MSEC(100*5)
 
 #define RGB(_r, _g, _b) { .r = (_r), .g = (_g), .b = (_b) }
 
 // Constants for the game
 #define COLS 16
-#define ROWS 8
+#define ROWS 16
 
 #if COLS != 16
 #error "bUpdatePixels() not sufficient for partially compressed bytes"
@@ -70,7 +70,7 @@ uint8_t translateAddress(uint8_t, uint8_t);
 
 // Global variables
 static const struct led_rgb colors[] = {
-	RGB(0x08, 0x00, 0x00), /* red */
+	RGB(0xff, 0x00, 0x00), /* red */
 	RGB(0x00, 0x08, 0x00), /* green */
 	RGB(0x00, 0x00, 0x08), /* blue */
 	RGB(0x00, 0x00, 0x00)  /* off */
@@ -87,6 +87,17 @@ int main() {
     uint8_t** const workingbuffer1 = allocateMemory();
     uint8_t** const workingbuffer2 = allocateMemory();
     struct led_rgb pixels[STRIP_NUM_PIXELS];
+    memset(&pixels, 0x00, sizeof(pixels));
+    
+    while (1) {
+    //break;
+        for (uint8_t row = 0; row < ROWS; ++row)
+            for (uint8_t col = 0; col < COLS; ++col) {
+                memcpy(&pixels[translateAddress(col, row)], &colors[0], sizeof(struct led_rgb));
+                led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
+                k_sleep(DELAY_TIME);
+            }
+    }
 
     // Initialize the grid with random values
     bInitGrid(workingbuffer1);
@@ -192,21 +203,21 @@ void bUpdatePixels(uint8_t** bgrid, struct led_rgb* pixels) {
     for (uint8_t row = 0; row < ROWS; ++row) {
         for (uint8_t col = 0; col < fullbytecols; ++col) {
             if (bgrid[col][row] & CELL0) memcpy(&pixels[translateAddress(col*8+0, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else memcpy(&pixels[translateAddress(col*8+0, row)], &colors[3], sizeof(struct led_rgb)); // set dead
+            else 			 memcpy(&pixels[translateAddress(col*8+0, row)], &colors[3], sizeof(struct led_rgb)); // set dead
             if (bgrid[col][row] & CELL1) memcpy(&pixels[translateAddress(col*8+1, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else memcpy(&pixels[translateAddress(col*8+1, row)], &colors[3], sizeof(struct led_rgb)); // set dead
+            else 			 memcpy(&pixels[translateAddress(col*8+1, row)], &colors[3], sizeof(struct led_rgb)); // set dead
             if (bgrid[col][row] & CELL2) memcpy(&pixels[translateAddress(col*8+2, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else memcpy(&pixels[translateAddress(col*8+2, row)], &colors[3], sizeof(struct led_rgb)); // set dead
+            else 			 memcpy(&pixels[translateAddress(col*8+2, row)], &colors[3], sizeof(struct led_rgb)); // set dead
             if (bgrid[col][row] & CELL3) memcpy(&pixels[translateAddress(col*8+3, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else memcpy(&pixels[translateAddress(col*8+3, row)], &colors[3], sizeof(struct led_rgb)); // set dead
+            else 			 memcpy(&pixels[translateAddress(col*8+3, row)], &colors[3], sizeof(struct led_rgb)); // set dead
             if (bgrid[col][row] & CELL4) memcpy(&pixels[translateAddress(col*8+4, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else memcpy(&pixels[translateAddress(col*8+4, row)], &colors[3], sizeof(struct led_rgb)); // set dead
+            else 			 memcpy(&pixels[translateAddress(col*8+4, row)], &colors[3], sizeof(struct led_rgb)); // set dead
             if (bgrid[col][row] & CELL5) memcpy(&pixels[translateAddress(col*8+5, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else memcpy(&pixels[translateAddress(col*8+5, row)], &colors[3], sizeof(struct led_rgb)); // set dead
+            else 			 memcpy(&pixels[translateAddress(col*8+5, row)], &colors[3], sizeof(struct led_rgb)); // set dead
             if (bgrid[col][row] & CELL6) memcpy(&pixels[translateAddress(col*8+6, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else memcpy(&pixels[translateAddress(col*8+6, row)], &colors[3], sizeof(struct led_rgb)); // set dead
+            else 			 memcpy(&pixels[translateAddress(col*8+6, row)], &colors[3], sizeof(struct led_rgb)); // set dead
             if (bgrid[col][row] & CELL7) memcpy(&pixels[translateAddress(col*8+7, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else memcpy(&pixels[translateAddress(col*8+7, row)], &colors[3], sizeof(struct led_rgb)); // set dead
+            else 			 memcpy(&pixels[translateAddress(col*8+7, row)], &colors[3], sizeof(struct led_rgb)); // set dead
         }
         
     }
@@ -275,16 +286,16 @@ void bSetCellStatus(uint8_t** bgrid, uint8_t _col, uint8_t _row, uint8_t status)
 uint8_t translateAddress(uint8_t col, uint8_t row) {
     /*  16x16 grid example:					*
      *     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f	*
-     *  0 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f	*
-     *  1 1f 1e 1d 1c 1b 1a 19 18 17 16 15 14 13 12 11 10	*
-     *  2 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f	*
+     *  0 0f 0e 0d 0c 0b 0a 09 08 07 06 05 04 03 02 01 00	*
+     *  1 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f	*
+     *  2 2f 2e 2d 2c 2b 2a 29 28 27 26 25 24 23 22 21 20	*
      *  ...							*
-     *  e e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef	*
-     *  f ff fe fd fc fb fa f9 f8 f7 f6 f5 f4 f3 f2 f1 f0	*/
+     *  e ef ee ed ec eb ea e9 e8 e7 e6 e5 e4 e3 e2 e1 e0	*
+     *  f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff	*/
     uint8_t addr = row << 4; // the first hex of translation is always equal to the row number 
     
-    if (col & 0x01) addr |= (0x0f - col); // if column number is odd reverse second hex
-    else addr |= col; // if column number is even then the second hex is equal to column number
+    if (row & 0x01) addr |= col; // if row number is odd then the second hex is equal to column number
+    else addr |= (0x0f - col); // if row number is even reverse second hex
     
     return addr;
 }
