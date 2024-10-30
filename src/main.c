@@ -30,15 +30,15 @@
 #endif
 
 // Constants for the game
-#define COLS 16
+#define COLS 32
 #define ROWS 16
 
 #if COLS % 16 != 0
 #error "bUpdatePixels() not sufficient for partially compressed bytes"
 #endif
 
-#if COLS*ROWS > 256
-#error "translateAddress() not sufficient for two panels"
+#if COLS*ROWS > 512
+#error "translateAddress() not sufficient for more than two panels"
 #endif
 
 #if STRIP_NUM_PIXELS < COLS*ROWS
@@ -72,7 +72,7 @@ void bUpdateGrid(uint8_t**, uint8_t**);
 uint8_t bCountNeighbours(uint8_t**, uint8_t, uint8_t);
 uint8_t bGetCellStatus(uint8_t**, uint8_t, uint8_t);
 void bSetCellStatus(uint8_t**, uint8_t, uint8_t, uint8_t);
-uint8_t translateAddress(uint8_t, uint8_t);
+uint16_t translateAddress(uint16_t, uint8_t);
 
 // Testing
 void testPanel(struct led_rgb*);
@@ -99,8 +99,8 @@ int main() {
     struct led_rgb* pixels = calloc(STRIP_NUM_PIXELS, sizeof(struct led_rgb)); // 3 (colours) * STRIP_NUM_PIXELS
     
     // Testing
-    testPanel(pixels);
-    //testTranslateAddress(pixels);
+    //testPanel(pixels);
+    testTranslateAddress(pixels);
 
     // Initialize the grid with random values
     bInitGrid(workingbuffer1);
@@ -276,26 +276,39 @@ void bSetCellStatus(uint8_t** bgrid, uint8_t _col, uint8_t _row, uint8_t status)
     else bgrid[_col/8][_row] &= (~cell); // make dead
 }
 
-uint8_t translateAddress(uint8_t col, uint8_t row) {
-    /*  16x16 grid example:					*
-     *     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f	*
-     *  0 0f 0e 0d 0c 0b 0a 09 08 07 06 05 04 03 02 01 00	*
-     *  1 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f	*
-     *  2 2f 2e 2d 2c 2b 2a 29 28 27 26 25 24 23 22 21 20	*
-     *  ...							*
-     *  e ef ee ed ec eb ea e9 e8 e7 e6 e5 e4 e3 e2 e1 e0	*
-     *  f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff	*/
-    uint8_t addr = row << 4; // the first hex of translation is always equal to the row number 
-    
-    if (row & 0x01) addr |= col; // if row number is odd then the second hex is equal to column number
-    else addr |= (0x0f - col); // if row number is even reverse second hex
-    
+uint16_t translateAddress(uint16_t col, uint8_t row) {
+    /* 32x16 grid example:					*
+     *      00   01 ...   0e   0f |   10   11 ...   1e   1f	*
+     * 00 000f 000e ... 0001 0000 | 01ff 01fe ... 01f1 01f0	*
+     * 01 0010 0011 ... 001e 001f | 01e0 01e1 ... 01ee 01ef	*
+     * 02 002f 002e ... 0021 0020 | 01df 01de ... 01d1 01d0	*
+     * ...          ...           |           ...		*
+     * 0e 00ef 00ee ... 00e1 00e0 | 011f 011e ... 0111 0110	*
+     * 0f 00f0 00f1 ... 00fe 00ff | 0100 0101 ... 010e 010f */
+    uint16_t addr;
+        
+    if (col < 0x0010) { // leftmost panel
+        addr = 0x0000;
+        addr |= (uint16_t)row << 4; // 0x00#* |= 0x000# << 4 
+        if (row & 0x01) addr |= col; // if row number is odd: 0x00*# |= 0x000#
+        else addr |= (0x000f - col); // if row number is even: 0x00*# |= (0x000f - 0x000#)
+    } else { // rightmost panel
+        addr = 0x0100;
+        addr |= (uint16_t)(0x0f - row) << 4; // 0x01(f-#)* = (0x0f - 0x0#) << 4
+        if (row & 0x01) addr |= (col & 0x000f); // if row number is odd: 0x01*# |= 0x000#
+        else addr |= (0x000f - (col & 0x000f)); // if row number is even: 0x01*# |= (0x000f - 0x000#)
+    }
     return addr;
+
 }
 
 void testPanel(struct led_rgb* pixels) {
-    /* expected behaviour:		*
-     * go through all of LEDs in order	*/
+    /* expected behaviour:				*
+     * go through all of LEDs in order			*
+     * start on leftmost panel in top right corner	*
+     * finish on bottom right corner			*
+     * step onto rightmost panel in bottom left corner	*
+     * finish on top left corner			*/
     while (1) {
         for (uint16_t addr = 0; addr < STRIP_NUM_PIXELS; ++addr) {
             pixels[addr].r = 0x02;
@@ -316,14 +329,12 @@ void testTranslateAddress(struct led_rgb* pixels) {
      * ...				*/
     while (1) {
         for (uint8_t row = 0; row < ROWS; ++row)
-            for (uint8_t col = 0; col < COLS; ++col) {
-                memcpy(&pixels[translateAddress(col, row)], &colors[0], sizeof(struct led_rgb));
+            for (uint16_t col = 0; col < COLS; ++col) {
+                pixels[translateAddress(col, row)].r = 0x02;
                 led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
                 k_sleep(NONE_DELAY);
-
-                memcpy(&pixels[translateAddress(col, row)], &colors[3], sizeof(struct led_rgb));
-                led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
-                k_sleep(NONE_DELAY);
+            
+                pixels[translateAddress(col, row)].r = 0x00;
             }
     }
 }
