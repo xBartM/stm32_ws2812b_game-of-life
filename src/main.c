@@ -41,8 +41,8 @@
 #error "translateAddress() not sufficient for two panels"
 #endif
 
-#if STRIP_NUM_PIXELS != COLS*ROWS
-#error "Game size not equal to led chain length"
+#if STRIP_NUM_PIXELS < COLS*ROWS
+#error "Game size bigger than  led chain length"
 #endif
 
 #warning "TODO: bInitGrid() doesn't use srand() so it's always the same"
@@ -96,8 +96,7 @@ int main() {
     // Initialize memory
     uint8_t** const workingbuffer1 = allocateMemory();
     uint8_t** const workingbuffer2 = allocateMemory();
-    struct led_rgb pixels[STRIP_NUM_PIXELS];
-    memset(&pixels, 0x00, sizeof(pixels));
+    struct led_rgb* pixels = calloc(STRIP_NUM_PIXELS, sizeof(struct led_rgb)); // 3 (colours) * STRIP_NUM_PIXELS
     
     // Testing
     testPanel(pixels);
@@ -130,6 +129,7 @@ int main() {
     // Free the working memory
     freeMemory(workingbuffer1);
     freeMemory(workingbuffer2);
+    free(pixels);
     
     return 0;
 }
@@ -297,14 +297,12 @@ void testPanel(struct led_rgb* pixels) {
     /* expected behaviour:		*
      * go through all of LEDs in order	*/
     while (1) {
-        for (uint16_t addr = 0; addr < STRIP_NUM_PIXELS; ++addr) { 
-            memcpy(&pixels[addr], &colors[0], sizeof(struct led_rgb));
+        for (uint16_t addr = 0; addr < STRIP_NUM_PIXELS; ++addr) {
+            pixels[addr].r = 0x02;
             led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
             k_sleep(NONE_DELAY);
             
-            memcpy(&pixels[addr], &colors[3], sizeof(struct led_rgb));
-            led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
-            k_sleep(NONE_DELAY);
+            pixels[addr].r = 0x00;
         }
     }
 }
@@ -322,7 +320,7 @@ void testTranslateAddress(struct led_rgb* pixels) {
                 memcpy(&pixels[translateAddress(col, row)], &colors[0], sizeof(struct led_rgb));
                 led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
                 k_sleep(NONE_DELAY);
-                
+
                 memcpy(&pixels[translateAddress(col, row)], &colors[3], sizeof(struct led_rgb));
                 led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
                 k_sleep(NONE_DELAY);

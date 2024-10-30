@@ -9,7 +9,7 @@
 		spi-max-frequency = <6400000>; /* 6.4MHz for (1.25us/8) pulse */
 
 		/* WS2812 */
-		chain-length = <256>; /* number of LEDs to use */
+		chain-length = <512>; /* number of LEDs to use */
 		spi-cpha; /* dziekuwa Kusiu */
 		spi-one-frame = <0xf8>; /* 11111000 for 781.25us high and 468.75us low */
 		spi-zero-frame = <0xe0>; /* 11100000 for 468.75us high and 781.25us low */
