@@ -206,24 +206,13 @@ void bUpdatePixels(uint8_t** bgrid, struct led_rgb* pixels) {
     
     for (uint8_t row = 0; row < ROWS; ++row) {
         for (uint8_t col = 0; col < fullbytecols; ++col) {
-            if (bgrid[col][row] & CELL0) memcpy(&pixels[translateAddress(col*8+0, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else 			 memcpy(&pixels[translateAddress(col*8+0, row)], &colors[3], sizeof(struct led_rgb)); // set dead
-            if (bgrid[col][row] & CELL1) memcpy(&pixels[translateAddress(col*8+1, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else 			 memcpy(&pixels[translateAddress(col*8+1, row)], &colors[3], sizeof(struct led_rgb)); // set dead
-            if (bgrid[col][row] & CELL2) memcpy(&pixels[translateAddress(col*8+2, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else 			 memcpy(&pixels[translateAddress(col*8+2, row)], &colors[3], sizeof(struct led_rgb)); // set dead
-            if (bgrid[col][row] & CELL3) memcpy(&pixels[translateAddress(col*8+3, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else 			 memcpy(&pixels[translateAddress(col*8+3, row)], &colors[3], sizeof(struct led_rgb)); // set dead
-            if (bgrid[col][row] & CELL4) memcpy(&pixels[translateAddress(col*8+4, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else 			 memcpy(&pixels[translateAddress(col*8+4, row)], &colors[3], sizeof(struct led_rgb)); // set dead
-            if (bgrid[col][row] & CELL5) memcpy(&pixels[translateAddress(col*8+5, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else 			 memcpy(&pixels[translateAddress(col*8+5, row)], &colors[3], sizeof(struct led_rgb)); // set dead
-            if (bgrid[col][row] & CELL6) memcpy(&pixels[translateAddress(col*8+6, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else 			 memcpy(&pixels[translateAddress(col*8+6, row)], &colors[3], sizeof(struct led_rgb)); // set dead
-            if (bgrid[col][row] & CELL7) memcpy(&pixels[translateAddress(col*8+7, row)], &colors[0], sizeof(struct led_rgb)); // set alive
-            else 			 memcpy(&pixels[translateAddress(col*8+7, row)], &colors[3], sizeof(struct led_rgb)); // set dead
+            for (uint8_t i = 0; i < 8; ++i) {
+                if ((bgrid[col][row] << i) & CELL0) // move to the next bit and check the highest 
+                    memcpy(&pixels[translateAddress(col*8+i, row)], &colors[0], sizeof(struct led_rgb)); // if alive - set alive
+                else // dead
+                    memcpy(&pixels[translateAddress(col*8+i, row)], &colors[3], sizeof(struct led_rgb)); // set dead
+            }
         }
-        
     }
 }
 
