@@ -21,6 +21,8 @@
 #endif
 
 #define DELAY_TIME K_MSEC(100*5)
+#define FAST_DELAY K_MSEC(100*1)
+#define NONE_DELAY K_MSEC(1)
 
 // Check if char is 8 bits long
 #if CHAR_BIT != 8 
@@ -72,6 +74,10 @@ uint8_t bGetCellStatus(uint8_t**, uint8_t, uint8_t);
 void bSetCellStatus(uint8_t**, uint8_t, uint8_t, uint8_t);
 uint8_t translateAddress(uint8_t, uint8_t);
 
+// Testing
+void testPanel(struct led_rgb*);
+void testTranslateAddress(struct led_rgb*);
+
 // Global variables
 static const struct led_rgb colors[] = {
 	RGB(0x08, 0x00, 0x00), /* red */
@@ -93,15 +99,9 @@ int main() {
     struct led_rgb pixels[STRIP_NUM_PIXELS];
     memset(&pixels, 0x00, sizeof(pixels));
     
-    while (1) {
-    break;
-        for (uint8_t row = 0; row < ROWS; ++row)
-            for (uint8_t col = 0; col < COLS; ++col) {
-                memcpy(&pixels[translateAddress(col, row)], &colors[0], sizeof(struct led_rgb));
-                led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
-                k_sleep(DELAY_TIME);
-            }
-    }
+    // Testing
+    testPanel(pixels);
+    //testTranslateAddress(pixels);
 
     // Initialize the grid with random values
     bInitGrid(workingbuffer1);
@@ -209,7 +209,7 @@ void bUpdatePixels(uint8_t** bgrid, struct led_rgb* pixels) {
             for (uint8_t i = 0; i < 8; ++i) {
                 if ((bgrid[col][row] << i) & CELL0) // move to the next bit and check the highest 
                     memcpy(&pixels[translateAddress(col*8+i, row)], &colors[0], sizeof(struct led_rgb)); // if alive - set alive
-                else // dead
+                else // if dead
                     memcpy(&pixels[translateAddress(col*8+i, row)], &colors[3], sizeof(struct led_rgb)); // set dead
             }
         }
@@ -292,3 +292,41 @@ uint8_t translateAddress(uint8_t col, uint8_t row) {
     
     return addr;
 }
+
+void testPanel(struct led_rgb* pixels) {
+    /* expected behaviour:		*
+     * go through all of LEDs in order	*/
+    while (1) {
+        for (uint16_t addr = 0; addr < STRIP_NUM_PIXELS; ++addr) { 
+            memcpy(&pixels[addr], &colors[0], sizeof(struct led_rgb));
+            led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
+            k_sleep(NONE_DELAY);
+            
+            memcpy(&pixels[addr], &colors[3], sizeof(struct led_rgb));
+            led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
+            k_sleep(NONE_DELAY);
+        }
+    }
+}
+
+void testTranslateAddress(struct led_rgb* pixels) {
+    /* expected behaviour:		*
+     * 1. start left top corner		*
+     * 2. go to right top corner	*
+     * 3. start left top-1 corner	*
+     * 4. go to right top-1 corner	*
+     * ...				*/
+    while (1) {
+        for (uint8_t row = 0; row < ROWS; ++row)
+            for (uint8_t col = 0; col < COLS; ++col) {
+                memcpy(&pixels[translateAddress(col, row)], &colors[0], sizeof(struct led_rgb));
+                led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
+                k_sleep(NONE_DELAY);
+                
+                memcpy(&pixels[translateAddress(col, row)], &colors[3], sizeof(struct led_rgb));
+                led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
+                k_sleep(NONE_DELAY);
+            }
+    }
+}
+
