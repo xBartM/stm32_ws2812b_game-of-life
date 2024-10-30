@@ -11,6 +11,7 @@
 //#include <zephyr/drivers/spi.h>
 //#include <zephyr/sys/util.h>
 
+// Zephyr specific
 #define STRIP_NODE DT_ALIAS(led_strip)
 
 #if DT_NODE_HAS_PROP(DT_ALIAS(led_strip), chain_length)
@@ -21,13 +22,16 @@
 
 #define DELAY_TIME K_MSEC(100*5)
 
-#define RGB(_r, _g, _b) { .r = (_r), .g = (_g), .b = (_b) }
+// Check if char is 8 bits long
+#if CHAR_BIT != 8 
+#error "CHAR_BIT != 8"
+#endif
 
 // Constants for the game
 #define COLS 16
 #define ROWS 16
 
-#if COLS != 16
+#if COLS % 16 != 0
 #error "bUpdatePixels() not sufficient for partially compressed bytes"
 #endif
 
@@ -39,10 +43,7 @@
 #error "Game size not equal to led chain length"
 #endif
 
-// Check if char is 8 bits long
-#if CHAR_BIT != 8 
-#error "CHAR_BIT != 8"
-#endif
+#warning "TODO: bInitGrid() doesn't use srand() so it's always the same"
 
 // Bit definitions
 #define CELL0 0x80 // 0b10000000
@@ -53,6 +54,9 @@
 #define CELL5 0x04 // 0b00000100
 #define CELL6 0x02 // 0b00000010
 #define CELL7 0x01 // 0b00000001
+
+// led_rgb struct helper
+#define RGB(_r, _g, _b) { .r = (_r), .g = (_g), .b = (_b) }
 
 // Function prototypes
 uint8_t** allocateMemory();
