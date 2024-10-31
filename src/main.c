@@ -21,8 +21,8 @@
 #endif
 
 #define DELAY_TIME K_MSEC(100*5)
-#define FAST_DELAY K_MSEC(100*1)
-#define NONE_DELAY K_MSEC(1)
+#define DELAY_FAST K_MSEC(100*1)
+#define DELAY_NONE K_MSEC(1)
 
 // Check if char is 8 bits long
 #if CHAR_BIT != 8 
@@ -57,15 +57,15 @@
 #define CELL6 0x02 // 0b00000010
 #define CELL7 0x01 // 0b00000001
 
-// led_rgb related
-#define RGB(_r, _g, _b) { .r = (_r), .g = (_g), .b = (_b) }
+// Panel draw settings
+//#define RGB(_r, _g, _b) { .r = (_r), .g = (_g), .b = (_b) }
 #define MAX_LUMENS 0x08 // max brightness at 0xff
-#define LUMEN_BINS 8 // number of steps to fade out/fade in in
+#define LUMEN_STEPS 8 // number of steps to fade out/fade in in
 void setupLumcolours();
 
 // Function prototypes
-void bInitGrid(uint8_t (*)[ROWS]);
-void bShowPixels(uint8_t (*)[ROWS]);
+void bInitGrid(uint8_t (*)[ROWS], uint8_t (*)[ROWS]);
+void bShowPixels(uint8_t (*)[ROWS], uint8_t (*)[ROWS]);
 void bUpdateGrid(uint8_t (*)[ROWS], uint8_t (*)[ROWS]);
 uint8_t bCountNeighbours(uint8_t (*)[ROWS], uint16_t, uint8_t);
 uint8_t bGetCellStatus(uint8_t (*)[ROWS], uint16_t, uint8_t);
@@ -77,13 +77,7 @@ void testPanel();
 void testTranslateAddress();
 
 // Global variables
-static const struct led_rgb colors[] = {
-	RGB(0x08, 0x00, 0x00), /* red */
-	RGB(0x00, 0x08, 0x00), /* green */
-	RGB(0x00, 0x00, 0x08), /* blue */
-	RGB(0x00, 0x00, 0x00)  /* off */
-};
-static struct led_rgb lumcolours[1+3*LUMEN_BINS]; // black + red*LUMEN_BINS + green*LUMEN_BINS + blue*LUMEN_BINS
+static struct led_rgb lumcolours[1+LUMEN_STEPS]; // black + rest of the palette
 
 static const struct device *const strip = DEVICE_DT_GET(STRIP_NODE);
 static struct led_rgb pixels[STRIP_NUM_PIXELS]; // initialized as 0s
@@ -96,8 +90,9 @@ int main() {
         return 0;
     
     // Initialize memory
-    uint8_t (*redgame)[ROWS] = gbuffer1;
-    uint8_t (*workingbuffer)[ROWS] = gbuffer2;
+    uint8_t (*redgameprev)[ROWS] = gbuffer2;
+    uint8_t (*redgamecurr)[ROWS] = gbuffer1;
+    uint8_t (*redgamenext)[ROWS] = gbuffer2;
     uint8_t (*swapbuffer)[ROWS];
     setupLumcolours();
     
@@ -106,22 +101,23 @@ int main() {
     //testTranslateAddress();
 
     // Initialize the grid with random values
-    bInitGrid(redgame);
+    bInitGrid(redgamecurr, redgameprev);
 
     while (1) { // main loop
         // Print state
-        bShowPixels(redgame);
+        bShowPixels(redgamecurr, redgameprev);
 
         // Update the grid to the next generation
-        bUpdateGrid(redgame, workingbuffer);
+        bUpdateGrid(redgamecurr, redgamenext);
         
         // Swap buffers
-	swapbuffer = redgame;
-	redgame = workingbuffer;
-	workingbuffer = swapbuffer;
+	swapbuffer = redgamecurr;
+	redgamecurr = redgamenext;
+	redgameprev = swapbuffer;
+	redgamenext = swapbuffer;
 	
 	// Sleep
-        k_sleep(DELAY_TIME);
+        k_sleep(DELAY_NONE);
 
     }
     
@@ -129,40 +125,50 @@ int main() {
 }
 
 void setupLumcolours() {
-    // lumcolours[0] is black
-    // lumcolours[1]            up to lumcolours[LUMEN_BINS] is red
-    // lumcolours[1+LUMEN_BINS] up to lumcolours[2*LUMEN_BINS] is green
-    // lumcolours[2+LUMEN_BINS] up to lumcolours[3*LUMEN_BINS] is blue
-    // all colours start from the brightest form
-    for (uint8_t thebin = 1; thebin < LUMEN_BINS+1; ++thebin) {
-        lumcolours[0*LUMEN_BINS+thebin].r = (MAX_LUMENS / LUMEN_BINS) * thebin;
-        lumcolours[1*LUMEN_BINS+thebin].g = (MAX_LUMENS / LUMEN_BINS) * thebin;
-        lumcolours[2*LUMEN_BINS+thebin].b = (MAX_LUMENS / LUMEN_BINS) * thebin;
+    /* example for: 			*
+     * MAX_LUMENS == 0x08,		*
+     * LUMEN_STEPS == 4			*
+     * so stepsize == 0x02		*
+     *   (red)0    1    2    3    4	*
+     * r   0x00 0x02 0x04 0x06 0x08	*
+     * g   0x00 0x02 0x04 0x06 0x08	*
+     * b   0x00 0x02 0x04 0x06 0x08	*/
+    const uint8_t stepsize = MAX_LUMENS / LUMEN_STEPS;
+    for (uint8_t thebin = 1; thebin < LUMEN_STEPS+1; ++thebin) {
+        lumcolours[thebin].r = stepsize * thebin;
+        lumcolours[thebin].g = stepsize * thebin;
+        lumcolours[thebin].b = stepsize * thebin;
         
     }
 }
 
 // Initialize the grid with random values
-void bInitGrid(uint8_t (*bgrid1)[ROWS]) { 
+void bInitGrid(uint8_t (*bgrid1)[ROWS], uint8_t (*bgrid2)[ROWS]) { 
     int bytecols = COLS/8; // int division truncates (rounds towards 0)
     if (COLS % 8 != 0) ++bytecols;
     
     for (int col = 0; col < bytecols; ++col)
-        for (int row = 0; row < ROWS; ++row)
+        for (int row = 0; row < ROWS; ++row) {
             bgrid1[col][row] = rand() % 0xFF; // 0b11111111; // Randomly initialize BITS (cells) to either 0 or 1
+            //bgrid2[col][row] = bgrid1[col][row];
+        }
 }
 
-void bShowPixels(uint8_t (*bgrid)[ROWS]) {
+void bShowPixels(uint8_t (*currbgrid)[ROWS], uint8_t (*prevbgrid)[ROWS]) {
     const uint8_t fullbytecols = COLS/8;
     
-    for (uint8_t lumcolour = 0; lumcolour < LUMEN_BINS; ++lumcolour) {
+    for (uint8_t lumcolour = 0; lumcolour < LUMEN_STEPS + 1; ++lumcolour) {
         for (uint8_t row = 0; row < ROWS; ++row) {
             for (uint8_t col = 0; col < fullbytecols; ++col) {
                 for (uint8_t i = 0; i < 8; ++i) {
-                    if ((bgrid[col][row] << i) & CELL0) // move to the next bit and check the highest 
-                        memcpy(&pixels[translateAddress(col*8+i, row)], &lumcolours[1+lumcolour], sizeof(struct led_rgb)); // if alive - set alive
+                    if ((currbgrid[col][row] << i) & CELL0) // move to the next bit and check the highest 
+                        if ((prevbgrid[col][row] << i) & CELL0) // staying alive
+                            pixels[translateAddress(col*8+i, row)].r = lumcolours[LUMEN_STEPS].r;
+                        else pixels[translateAddress(col*8+i, row)].r = lumcolours[lumcolour].r; // arriving
+                    else if ((prevbgrid[col][row] << i) & CELL0) // dying
+                        pixels[translateAddress(col*8+i, row)].r = lumcolours[LUMEN_STEPS - lumcolour].r;
                     else // if dead
-                        memcpy(&pixels[translateAddress(col*8+i, row)], &lumcolours[0], sizeof(struct led_rgb)); // set dead
+                        pixels[translateAddress(col*8+i, row)].r = 0x00;
                 }
             }
         }
@@ -267,7 +273,7 @@ void testPanel() {
         for (uint16_t addr = 0; addr < STRIP_NUM_PIXELS; ++addr) {
             pixels[addr].r = 0x02;
             led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
-            k_sleep(NONE_DELAY);
+            k_sleep(DELAY_NONE);
             
             pixels[addr].r = 0x00;
         }
@@ -286,7 +292,7 @@ void testTranslateAddress() {
             for (uint16_t col = 0; col < COLS; ++col) {
                 pixels[translateAddress(col, row)].r = 0x02;
                 led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
-                k_sleep(NONE_DELAY);
+                k_sleep(DELAY_NONE);
             
                 pixels[translateAddress(col, row)].r = 0x00;
             }
