@@ -38,7 +38,7 @@
 #endif
 
 #if COLS*ROWS > 512
-#error "translateAddress() not sufficient for more than two panels"
+#error "translateAddress() not sufficient for more than two panels; easily expandable to an arbitrary number of panels"
 #endif
 
 #if STRIP_NUM_PIXELS < COLS*ROWS
@@ -69,9 +69,9 @@ void bPrintGrid(uint8_t**);
 void bPrintChar(uint8_t, uint8_t);
 void bUpdatePixels(uint8_t**, struct led_rgb*);
 void bUpdateGrid(uint8_t**, uint8_t**);
-uint8_t bCountNeighbours(uint8_t**, uint8_t, uint8_t);
-uint8_t bGetCellStatus(uint8_t**, uint8_t, uint8_t);
-void bSetCellStatus(uint8_t**, uint8_t, uint8_t, uint8_t);
+uint8_t bCountNeighbours(uint8_t**, uint16_t, uint8_t);
+uint8_t bGetCellStatus(uint8_t**, uint16_t, uint8_t);
+void bSetCellStatus(uint8_t**, uint16_t, uint8_t, uint8_t);
 uint16_t translateAddress(uint16_t, uint8_t);
 
 // Testing
@@ -100,7 +100,7 @@ int main() {
     
     // Testing
     //testPanel(pixels);
-    testTranslateAddress(pixels);
+    //testTranslateAddress(pixels);
 
     // Initialize the grid with random values
     bInitGrid(workingbuffer1);
@@ -219,7 +219,7 @@ void bUpdatePixels(uint8_t** bgrid, struct led_rgb* pixels) {
 void bUpdateGrid(uint8_t** currbgrid, uint8_t** nextbgrid) {
     uint8_t liveNeighbors = 0;
     for (uint8_t row = 0; row < ROWS; ++row) {
-        for (uint8_t col = 0; col < COLS; ++col) {
+        for (uint16_t col = 0; col < COLS; ++col) {
             liveNeighbors = bCountNeighbours(currbgrid, col, row);
 
             if (bGetCellStatus(currbgrid, col, row)) { // if alive
@@ -232,7 +232,7 @@ void bUpdateGrid(uint8_t** currbgrid, uint8_t** nextbgrid) {
     }
 }
 
-uint8_t bCountNeighbours(uint8_t** bgrid, uint8_t _col, uint8_t _row) {
+uint8_t bCountNeighbours(uint8_t** bgrid, uint16_t _col, uint8_t _row) {
     uint8_t nbrs = 0; // neighbour count
     for (int8_t i = -1; i <= 1; ++i) {
         for (int8_t j = -1; j <= 1; ++j) {
@@ -243,7 +243,7 @@ uint8_t bCountNeighbours(uint8_t** bgrid, uint8_t _col, uint8_t _row) {
     return nbrs;
 }
 
-uint8_t bGetCellStatus(uint8_t** bgrid, uint8_t _col, uint8_t _row) {
+uint8_t bGetCellStatus(uint8_t** bgrid, uint16_t _col, uint8_t _row) {
     if (_col > COLS - 1 || _row > ROWS - 1) return 0; // out of bounds (_col/_row == -1 -> 255)
     switch (_col % 8) {
         case 0: return bgrid[_col/8][_row] & CELL0;
@@ -258,7 +258,7 @@ uint8_t bGetCellStatus(uint8_t** bgrid, uint8_t _col, uint8_t _row) {
     return 0; // this shouldn't be reached
 }
 
-void bSetCellStatus(uint8_t** bgrid, uint8_t _col, uint8_t _row, uint8_t status) {
+void bSetCellStatus(uint8_t** bgrid, uint16_t _col, uint8_t _row, uint8_t status) {
     uint8_t cell = 0;
     
     switch (_col % 8) {
