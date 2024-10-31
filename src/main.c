@@ -67,7 +67,7 @@ void freeMemory(uint8_t**);
 void bInitGrid(uint8_t**);
 void bPrintGrid(uint8_t**);
 void bPrintChar(uint8_t, uint8_t);
-void bUpdatePixels(uint8_t**, struct led_rgb*);
+void bUpdatePixels(uint8_t**);
 void bUpdateGrid(uint8_t**, uint8_t**);
 uint8_t bCountNeighbours(uint8_t**, uint16_t, uint8_t);
 uint8_t bGetCellStatus(uint8_t**, uint16_t, uint8_t);
@@ -75,8 +75,8 @@ void bSetCellStatus(uint8_t**, uint16_t, uint8_t, uint8_t);
 uint16_t translateAddress(uint16_t, uint8_t);
 
 // Testing
-void testPanel(struct led_rgb*);
-void testTranslateAddress(struct led_rgb*);
+void testPanel();
+void testTranslateAddress();
 
 // Global variables
 static const struct led_rgb colors[] = {
@@ -87,6 +87,7 @@ static const struct led_rgb colors[] = {
 };
 
 static const struct device *const strip = DEVICE_DT_GET(STRIP_NODE);
+static struct led_rgb pixels[STRIP_NUM_PIXELS]; // initialized as 0s
 
 int main() {
 
@@ -96,11 +97,10 @@ int main() {
     // Initialize memory
     uint8_t** const workingbuffer1 = allocateMemory();
     uint8_t** const workingbuffer2 = allocateMemory();
-    struct led_rgb* pixels = calloc(STRIP_NUM_PIXELS, sizeof(struct led_rgb)); // 3 (colours) * STRIP_NUM_PIXELS
     
     // Testing
-    //testPanel(pixels);
-    //testTranslateAddress(pixels);
+    //testPanel();
+    //testTranslateAddress();
 
     // Initialize the grid with random values
     bInitGrid(workingbuffer1);
@@ -108,7 +108,7 @@ int main() {
     while (1) { // main loop
         // Print initial state
         k_sleep(DELAY_TIME);
-        bUpdatePixels(workingbuffer1, pixels);
+        bUpdatePixels(workingbuffer1);
         led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
         //bPrintGrid(workingbuffer1);
 
@@ -117,7 +117,7 @@ int main() {
 
         // Print the updated grid
         k_sleep(DELAY_TIME);
-        bUpdatePixels(workingbuffer2, pixels);
+        bUpdatePixels(workingbuffer2);
         led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
         //bPrintGrid(workingbuffer2);
         
@@ -129,7 +129,6 @@ int main() {
     // Free the working memory
     freeMemory(workingbuffer1);
     freeMemory(workingbuffer2);
-    free(pixels);
     
     return 0;
 }
@@ -201,7 +200,7 @@ void bPrintChar(uint8_t val, uint8_t nbbits) {
     }
 }
 
-void bUpdatePixels(uint8_t** bgrid, struct led_rgb* pixels) {
+void bUpdatePixels(uint8_t** bgrid) {
     const uint8_t fullbytecols = COLS/8;
     
     for (uint8_t row = 0; row < ROWS; ++row) {
@@ -302,7 +301,7 @@ uint16_t translateAddress(uint16_t col, uint8_t row) {
 
 }
 
-void testPanel(struct led_rgb* pixels) {
+void testPanel() {
     /* expected behaviour:				*
      * go through all of LEDs in order			*
      * start on leftmost panel in top right corner	*
@@ -320,7 +319,7 @@ void testPanel(struct led_rgb* pixels) {
     }
 }
 
-void testTranslateAddress(struct led_rgb* pixels) {
+void testTranslateAddress() {
     /* expected behaviour:		*
      * 1. start left top corner		*
      * 2. go to right top corner	*
