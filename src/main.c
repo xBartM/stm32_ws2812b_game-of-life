@@ -61,17 +61,12 @@
 #define RGB(_r, _g, _b) { .r = (_r), .g = (_g), .b = (_b) }
 
 // Function prototypes
-uint8_t** allocateMemory();
-void freeMemory(uint8_t**);
-
-void bInitGrid(uint8_t**);
-void bPrintGrid(uint8_t**);
-void bPrintChar(uint8_t, uint8_t);
-void bUpdatePixels(uint8_t**);
-void bUpdateGrid(uint8_t**, uint8_t**);
-uint8_t bCountNeighbours(uint8_t**, uint16_t, uint8_t);
-uint8_t bGetCellStatus(uint8_t**, uint16_t, uint8_t);
-void bSetCellStatus(uint8_t**, uint16_t, uint8_t, uint8_t);
+void bInitGrid(uint8_t (*)[ROWS]);
+void bUpdatePixels(uint8_t (*)[ROWS]);
+void bUpdateGrid(uint8_t (*)[ROWS], uint8_t (*)[ROWS]);
+uint8_t bCountNeighbours(uint8_t (*)[ROWS], uint16_t, uint8_t);
+uint8_t bGetCellStatus(uint8_t (*)[ROWS], uint16_t, uint8_t);
+void bSetCellStatus(uint8_t (*)[ROWS], uint16_t, uint8_t, uint8_t);
 uint16_t translateAddress(uint16_t, uint8_t);
 
 // Testing
@@ -88,6 +83,8 @@ static const struct led_rgb colors[] = {
 
 static const struct device *const strip = DEVICE_DT_GET(STRIP_NODE);
 static struct led_rgb pixels[STRIP_NUM_PIXELS]; // initialized as 0s
+static uint8_t thebuffer1[COLS][ROWS];
+static uint8_t thebuffer2[COLS][ROWS];
 
 int main() {
 
@@ -95,8 +92,8 @@ int main() {
         return 0;
     
     // Initialize memory
-    uint8_t** const workingbuffer1 = allocateMemory();
-    uint8_t** const workingbuffer2 = allocateMemory();
+    uint8_t (*workingbuffer1)[ROWS] = thebuffer1;
+    uint8_t (*workingbuffer2)[ROWS] = thebuffer2;
     
     // Testing
     //testPanel();
@@ -126,46 +123,11 @@ int main() {
 
     }
     
-    // Free the working memory
-    freeMemory(workingbuffer1);
-    freeMemory(workingbuffer2);
-    
     return 0;
 }
 
-// Allocate the memory for World Grid
-uint8_t** allocateMemory() {
-    /****************************************
-     * sample representation of 12x4 grid:  *
-     *      COLS                            *
-     * ROWS 0-7(byte0)  8-11(byte1)         *
-     *    0 0b00000000  0b0000xxxx          *
-     *    1 0b00000000  0b0000xxxx          *
-     *    2 0b00000000  0b0000xxxx          *
-     *    3 0b00000000  0b0000xxxx          *
-     ****************************************/
-    int bytecols = COLS/8; // int division truncates (rounds towards 0)
-    if (COLS % 8 != 0) ++bytecols;
-
-    uint8_t** allocmem = malloc(bytecols * sizeof(uint8_t*)); // alloc an array of pointers to specific columns
-    for (int col=0; col < bytecols; ++col) // iterate over those columns
-        allocmem[col] = malloc(ROWS * sizeof(uint8_t)); // alloc an array of uint8_ts within a column
-        
-    return allocmem;
-}
-
-// Free the memory
-void freeMemory(uint8_t** allocdmem) {
-    int bytecols = COLS/8; // int division truncates (rounds towards 0)
-    if (COLS % 8 != 0) ++bytecols;
-
-    for (int col=0; col < bytecols; ++col) // iterate over columns
-        free(allocdmem[col]); // free allocd memory within a column
-    free(allocdmem); // free an array of pointers to specific columns
-}
-
 // Initialize the grid with random values
-void bInitGrid(uint8_t** bgrid1) { 
+void bInitGrid(uint8_t (*bgrid1)[ROWS]) { 
     int bytecols = COLS/8; // int division truncates (rounds towards 0)
     if (COLS % 8 != 0) ++bytecols;
     
@@ -174,33 +136,7 @@ void bInitGrid(uint8_t** bgrid1) {
             bgrid1[col][row] = rand() % 0xFF; // 0b11111111; // Randomly initialize BITS (cells) to either 0 or 1
 }
 
-// Print the current state of the world
-void bPrintGrid(uint8_t** bgrid) {
-    int fullbytecols = COLS/8; // only whole bytes - the partial bytes will be handeled differentely
-    int restbytecols = COLS%8;
-    
-    for (int row = 0; row < ROWS; ++row) {
-        for (int col = 0; col < fullbytecols; ++col) {
-            bPrintChar(bgrid[col][row], 8); // print all full byte columns for a given row
-        }
-        if (restbytecols != 0) bPrintChar(bgrid[fullbytecols][row], restbytecols); // print partial byte columns for a given row
-        printf("\n");
-    }
-}
-
-// Print first nbbits from specified byte
-void bPrintChar(uint8_t val, uint8_t nbbits) {
-    while (nbbits > 0) {
-        if (val & CELL0) // check the "first" cell (bit)
-            printf("#"); // bit is set, cell is alive
-        else
-            printf(" "); // bit is not set, cell is dead
-        val <<= 1; // shift to left to get the next cell
-        --nbbits;
-    }
-}
-
-void bUpdatePixels(uint8_t** bgrid) {
+void bUpdatePixels(uint8_t (*bgrid)[ROWS]) {
     const uint8_t fullbytecols = COLS/8;
     
     for (uint8_t row = 0; row < ROWS; ++row) {
@@ -215,7 +151,7 @@ void bUpdatePixels(uint8_t** bgrid) {
     }
 }
 
-void bUpdateGrid(uint8_t** currbgrid, uint8_t** nextbgrid) {
+void bUpdateGrid(uint8_t (*currbgrid)[ROWS], uint8_t (*nextbgrid)[ROWS]) {
     uint8_t liveNeighbors = 0;
     for (uint8_t row = 0; row < ROWS; ++row) {
         for (uint16_t col = 0; col < COLS; ++col) {
@@ -231,7 +167,7 @@ void bUpdateGrid(uint8_t** currbgrid, uint8_t** nextbgrid) {
     }
 }
 
-uint8_t bCountNeighbours(uint8_t** bgrid, uint16_t _col, uint8_t _row) {
+uint8_t bCountNeighbours(uint8_t (*bgrid)[ROWS], uint16_t _col, uint8_t _row) {
     uint8_t nbrs = 0; // neighbour count
     for (int8_t i = -1; i <= 1; ++i) {
         for (int8_t j = -1; j <= 1; ++j) {
@@ -242,7 +178,7 @@ uint8_t bCountNeighbours(uint8_t** bgrid, uint16_t _col, uint8_t _row) {
     return nbrs;
 }
 
-uint8_t bGetCellStatus(uint8_t** bgrid, uint16_t _col, uint8_t _row) {
+uint8_t bGetCellStatus(uint8_t (*bgrid)[ROWS], uint16_t _col, uint8_t _row) {
     if (_col > COLS - 1 || _row > ROWS - 1) return 0; // out of bounds (_col/_row == -1 -> 255)
     switch (_col % 8) {
         case 0: return bgrid[_col/8][_row] & CELL0;
@@ -257,7 +193,7 @@ uint8_t bGetCellStatus(uint8_t** bgrid, uint16_t _col, uint8_t _row) {
     return 0; // this shouldn't be reached
 }
 
-void bSetCellStatus(uint8_t** bgrid, uint16_t _col, uint8_t _row, uint8_t status) {
+void bSetCellStatus(uint8_t (*bgrid)[ROWS], uint16_t _col, uint8_t _row, uint8_t status) {
     uint8_t cell = 0;
     
     switch (_col % 8) {
