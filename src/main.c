@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <limits.h>
 //#include <unistd.h>
-#include <string.h> // memcpy
+//#include <string.h> // memcpy
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/led_strip.h>
@@ -45,7 +45,10 @@
 #error "Game size bigger than  led chain length"
 #endif
 
+#warning "TODO: break out of testing using user button"
 #warning "TODO: bInitGrid() doesn't use srand() so it's always the same"
+#warning "TODO: setupLumcolours() to preprocessor magic"
+#warning "TODO: translateAddress() to preprocessor magic and global static const"
 
 // Bit definitions
 #define CELL0 0x80 // 0b10000000
@@ -57,7 +60,7 @@
 #define CELL6 0x02 // 0b00000010
 #define CELL7 0x01 // 0b00000001
 
-// Panel draw settings
+// Panel drawing settings
 //#define RGB(_r, _g, _b) { .r = (_r), .g = (_g), .b = (_b) }
 #define MAX_LUMENS 0x08 // max brightness at 0xff
 #define LUMEN_STEPS 8 // number of steps to fade out/fade in in
@@ -81,8 +84,8 @@ static struct led_rgb lumcolours[1+LUMEN_STEPS]; // black + rest of the palette
 
 static const struct device *const strip = DEVICE_DT_GET(STRIP_NODE);
 static struct led_rgb pixels[STRIP_NUM_PIXELS]; // initialized as 0s
-static uint8_t gbuffer1[COLS][ROWS];
-static uint8_t gbuffer2[COLS][ROWS];
+static uint8_t gbufferred0[COLS][ROWS];
+static uint8_t gbufferred1[COLS][ROWS];
 
 int main() {
 
@@ -90,9 +93,9 @@ int main() {
         return 0;
     
     // Initialize memory
-    uint8_t (*redgameprev)[ROWS] = gbuffer2;
-    uint8_t (*redgamecurr)[ROWS] = gbuffer1;
-    uint8_t (*redgamenext)[ROWS] = gbuffer2;
+    uint8_t (*redgameprev)[ROWS] = gbufferred1;
+    uint8_t (*redgamecurr)[ROWS] = gbufferred0;
+    uint8_t (*redgamenext)[ROWS] = gbufferred1;
     uint8_t (*swapbuffer)[ROWS];
     setupLumcolours();
     
@@ -204,36 +207,19 @@ uint8_t bCountNeighbours(uint8_t (*bgrid)[ROWS], uint16_t _col, uint8_t _row) {
 }
 
 uint8_t bGetCellStatus(uint8_t (*bgrid)[ROWS], uint16_t _col, uint8_t _row) {
-    if (_col > COLS - 1 || _row > ROWS - 1) return 0; // out of bounds (_col/_row == -1 -> 255)
-    switch (_col % 8) {
-        case 0: return bgrid[_col/8][_row] & CELL0;
-        case 1: return bgrid[_col/8][_row] & CELL1;
-        case 2: return bgrid[_col/8][_row] & CELL2;
-        case 3: return bgrid[_col/8][_row] & CELL3;
-        case 4: return bgrid[_col/8][_row] & CELL4;
-        case 5: return bgrid[_col/8][_row] & CELL5;
-        case 6: return bgrid[_col/8][_row] & CELL6;
-        case 7: return bgrid[_col/8][_row] & CELL7;
-    }
-    return 0; // this shouldn't be reached
+    if (_col > COLS - 1 || _row > ROWS - 1) 
+        return 0; // out of bounds (_col/_row == -1 -> 65535/255)
+    else 
+        return bgrid[_col/8][_row] & (CELL0 >> _col % 8);
+    
 }
 
 void bSetCellStatus(uint8_t (*bgrid)[ROWS], uint16_t _col, uint8_t _row, uint8_t status) {
-    uint8_t cell = 0;
-    
-    switch (_col % 8) {
-        case 0: cell = CELL0; break;
-        case 1: cell = CELL1; break;
-        case 2: cell = CELL2; break;
-        case 3: cell = CELL3; break;
-        case 4: cell = CELL4; break;
-        case 5: cell = CELL5; break;
-        case 6: cell = CELL6; break;
-        case 7: cell = CELL7; break;
-    }
-    
-    if (status) bgrid[_col/8][_row] |= cell; // make alive
-    else bgrid[_col/8][_row] &= (~cell); // make dead
+    if (status) 
+        bgrid[_col/8][_row] |= (CELL0 >> _col % 8); // make alive
+    else 
+        bgrid[_col/8][_row] &= (~(CELL0 >> _col % 8)); // make dead
+        
 }
 
 uint16_t translateAddress(uint16_t col, uint8_t row) {
