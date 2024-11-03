@@ -8,10 +8,11 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/led_strip.h>
 #include <zephyr/device.h>
+#include <zephyr/drivers/gpio.h>
 //#include <zephyr/drivers/spi.h>
 //#include <zephyr/sys/util.h>
 
-// Zephyr specific
+// Zephyr specific - setup led strip
 #define STRIP_NODE DT_ALIAS(led_strip)
 
 #if DT_NODE_HAS_PROP(DT_ALIAS(led_strip), chain_length)
@@ -19,7 +20,12 @@
 #else
 #error Unable to determine length of LED strip
 #endif
-
+// Zephyr specific - setup button
+#define SW0_NODE DT_ALIAS(sw0)
+#if DT_NODE_HAS_STATUS_OKAY(SW0_NODE)
+#define BUTTON_TESTING_BREAK
+#endif
+// Zephyr specific - ksleep() time
 #define DELAY_TIME K_MSEC(100*5)
 #define DELAY_FAST K_MSEC(100*1)
 #define DELAY_NONE K_MSEC(1)
@@ -74,23 +80,38 @@ uint8_t bCountNeighbours(uint8_t (*)[ROWS], uint16_t, uint8_t);
 uint8_t bGetCellStatus(uint8_t (*)[ROWS], uint16_t, uint8_t);
 void bSetCellStatus(uint8_t (*)[ROWS], uint16_t, uint8_t, uint8_t);
 uint16_t translateAddress(uint16_t, uint8_t);
+#ifdef BUTTON_TESTING_BREAK
+int8_t configure_button();
+void button_pressed_callback(const struct device*, struct gpio_callback*, uint32_t);
+#endif
 
 // Testing
-void testPanel();
-void testTranslateAddress();
+uint8_t testPanel();
+uint8_t testTranslateAddress();
 
 // Global variables
-static struct led_rgb lumcolours[1+LUMEN_STEPS]; // black + rest of the palette
-
+// led strip specific
 static const struct device *const strip = DEVICE_DT_GET(STRIP_NODE);
-static struct led_rgb pixels[STRIP_NUM_PIXELS]; // initialized as 0s
+static struct led_rgb lumcolours[1+LUMEN_STEPS]; // for fade out/fade in; black + rest of the palette
+static struct led_rgb pixels[STRIP_NUM_PIXELS]; // to display on led strip; initialized as 0s
+//buffers for game of life
 static uint8_t gbufferred0[COLS][ROWS];
 static uint8_t gbufferred1[COLS][ROWS];
+// button specific
+#ifdef BUTTON_TESTING_BREAK
+static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(DT_ALIAS(sw0), gpios, {0});
+static struct gpio_callback button_cb_data;
+#endif
+static uint8_t end_testing = 0;
 
 int main() {
 
-    if (!(device_is_ready(strip)))
+    if (!device_is_ready(strip))
         return 0;
+#ifdef BUTTON_TESTING_BREAK
+    if (configure_button())
+        return 0;
+#endif
     
     // Initialize memory
     uint8_t (*redgameprev)[ROWS] = gbufferred1;
@@ -100,8 +121,13 @@ int main() {
     setupLumcolours();
     
     // Testing
+#ifdef BUTTON_TESTING_BERAK
+    end_testing = testPanel();
+    end_testing = testTranslateAddress();
+#else // uncomment and reflash to test if not using button
     //testPanel();
     //testTranslateAddress();
+#endif
 
     // Initialize the grid with random values
     bInitGrid(redgamecurr, redgameprev);
@@ -248,7 +274,7 @@ uint16_t translateAddress(uint16_t col, uint8_t row) {
 
 }
 
-void testPanel() {
+uint8_t testPanel() {
     /* expected behaviour:				*
      * go through all of LEDs in order			*
      * start on leftmost panel in top right corner	*
@@ -260,13 +286,15 @@ void testPanel() {
             pixels[addr].r = 0x02;
             led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
             k_sleep(DELAY_NONE);
-            
             pixels[addr].r = 0x00;
+            
+            if (end_testing) return 0;
+
         }
     }
 }
 
-void testTranslateAddress() {
+uint8_t testTranslateAddress() {
     /* expected behaviour:		*
      * 1. start left top corner		*
      * 2. go to right top corner	*
@@ -278,10 +306,33 @@ void testTranslateAddress() {
             for (uint16_t col = 0; col < COLS; ++col) {
                 pixels[translateAddress(col, row)].r = 0x02;
                 led_strip_update_rgb(strip, pixels, STRIP_NUM_PIXELS);
-                k_sleep(DELAY_NONE);
-            
+                k_sleep(DELAY_NONE);        
                 pixels[translateAddress(col, row)].r = 0x00;
+                
+                if (end_testing) return 0;
             }
     }
 }
 
+#ifdef BUTTON_TESTING_BREAK
+int8_t configure_button() {
+    if (!gpio_is_ready_dt(&button)) 
+        return -1;
+    
+    if (gpio_pin_configure_dt(&button, GPIO_INPUT) != 0)
+        return -1;
+
+    if (gpio_pin_interrupt_configure_dt(&button, GPIO_INT_EDGE_TO_ACTIVE) != 0)
+        return -1;
+
+    gpio_init_callback(&button_cb_data, button_pressed_callback, BIT(button.pin));
+    gpio_add_callback(button.port, &button_cb_data);
+    return 0;
+}
+
+void button_pressed_callback(const struct device *dev, struct gpio_callback *cb,
+		    uint32_t pins)
+{
+	end_testing = 1;
+}
+#endif
