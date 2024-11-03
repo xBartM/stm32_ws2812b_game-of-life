@@ -72,8 +72,8 @@
 void setupLumcolours();
 
 // Function prototypes
-void bInitGrid(uint8_t (*)[ROWS], uint8_t (*)[ROWS]);
-void bShowPixels(uint8_t (*)[ROWS], uint8_t (*)[ROWS]);
+void bInitGrid(uint8_t (*)[ROWS]);
+void bShowPixels(uint8_t (*)[ROWS], uint8_t (*)[ROWS], uint8_t (*)[ROWS], uint8_t (*)[ROWS], uint8_t (*)[ROWS], uint8_t (*)[ROWS]);
 void bUpdateGrid(uint8_t (*)[ROWS], uint8_t (*)[ROWS]);
 uint8_t bCountNeighbours(uint8_t (*)[ROWS], uint16_t, uint8_t);
 uint8_t bGetCellStatus(uint8_t (*)[ROWS], uint16_t, uint8_t);
@@ -96,6 +96,10 @@ static struct led_rgb pixels[STRIP_NUM_PIXELS]; // to display on led strip; init
 //buffers for game of life
 static uint8_t gbufferred0[COLS][ROWS];
 static uint8_t gbufferred1[COLS][ROWS];
+static uint8_t gbuffergreen0[COLS][ROWS];
+static uint8_t gbuffergreen1[COLS][ROWS];
+static uint8_t gbufferblue0[COLS][ROWS];
+static uint8_t gbufferblue1[COLS][ROWS];
 // button specific
 #ifdef BUTTON_TESTING_BREAK
 static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(DT_ALIAS(sw0), gpios, {0});
@@ -116,6 +120,12 @@ int main() {
     uint8_t (*redgameprev)[ROWS] = gbufferred1;
     uint8_t (*redgamecurr)[ROWS] = gbufferred0;
     uint8_t (*redgamenext)[ROWS] = gbufferred1;
+    uint8_t (*greengameprev)[ROWS] = gbuffergreen1;
+    uint8_t (*greengamecurr)[ROWS] = gbuffergreen0;
+    uint8_t (*greengamenext)[ROWS] = gbuffergreen1;
+    uint8_t (*bluegameprev)[ROWS] = gbufferblue1;
+    uint8_t (*bluegamecurr)[ROWS] = gbufferblue0;
+    uint8_t (*bluegamenext)[ROWS] = gbufferblue1;
     uint8_t (*swapbuffer)[ROWS];
     setupLumcolours();
     
@@ -129,20 +139,32 @@ int main() {
 #endif
 
     // Initialize the grid with random values
-    bInitGrid(redgamecurr, redgameprev);
+    bInitGrid(redgamecurr);
+    bInitGrid(greengamecurr);
+    bInitGrid(bluegamecurr);
 
     while (1) { // main loop
         // Print state
-        bShowPixels(redgamecurr, redgameprev);
+        bShowPixels(redgamecurr, redgameprev, greengamecurr, greengameprev, bluegamecurr, bluegameprev);
 
         // Update the grid to the next generation
         bUpdateGrid(redgamecurr, redgamenext);
+        bUpdateGrid(greengamecurr, greengamenext);
+        bUpdateGrid(bluegamecurr, bluegamenext);
         
         // Swap buffers
 	swapbuffer = redgamecurr;
 	redgamecurr = redgamenext;
 	redgameprev = swapbuffer;
 	redgamenext = swapbuffer;
+	swapbuffer = greengamecurr;
+	greengamecurr = greengamenext;
+	greengameprev = swapbuffer;
+	greengamenext = swapbuffer;
+	swapbuffer = bluegamecurr;
+	bluegamecurr = bluegamenext;
+	bluegameprev = swapbuffer;
+	bluegamenext = swapbuffer;
 	
 	// Sleep
         k_sleep(DELAY_NONE);
@@ -171,32 +193,50 @@ void setupLumcolours() {
 }
 
 // Initialize the grid with random values
-void bInitGrid(uint8_t (*bgrid1)[ROWS], uint8_t (*bgrid2)[ROWS]) { 
+void bInitGrid(uint8_t (*bgrid1)[ROWS]) { 
     int bytecols = COLS/8; // int division truncates (rounds towards 0)
     if (COLS % 8 != 0) ++bytecols;
     
     for (int col = 0; col < bytecols; ++col)
-        for (int row = 0; row < ROWS; ++row) {
+        for (int row = 0; row < ROWS; ++row)
             bgrid1[col][row] = rand() % 0xFF; // 0b11111111; // Randomly initialize BITS (cells) to either 0 or 1
-            //bgrid2[col][row] = bgrid1[col][row];
-        }
+
 }
 
-void bShowPixels(uint8_t (*currbgrid)[ROWS], uint8_t (*prevbgrid)[ROWS]) {
+void bShowPixels(uint8_t (*currredgrid)[ROWS], uint8_t (*prevredgrid)[ROWS], uint8_t (*currgreengrid)[ROWS], uint8_t (*prevgreengrid)[ROWS], uint8_t (*currbluegrid)[ROWS], uint8_t (*prevbluegrid)[ROWS]) {
     const uint8_t fullbytecols = COLS/8;
     
     for (uint8_t lumcolour = 0; lumcolour < LUMEN_STEPS + 1; ++lumcolour) {
         for (uint8_t row = 0; row < ROWS; ++row) {
             for (uint8_t col = 0; col < fullbytecols; ++col) {
                 for (uint8_t i = 0; i < 8; ++i) {
-                    if ((currbgrid[col][row] << i) & CELL0) // move to the next bit and check the highest 
-                        if ((prevbgrid[col][row] << i) & CELL0) // staying alive
+                // RED
+                    if ((currredgrid[col][row] << i) & CELL0) // move to the next bit and check the highest 
+                        if ((prevredgrid[col][row] << i) & CELL0) // staying alive
                             pixels[translateAddress(col*8+i, row)].r = lumcolours[LUMEN_STEPS].r;
                         else pixels[translateAddress(col*8+i, row)].r = lumcolours[lumcolour].r; // arriving
-                    else if ((prevbgrid[col][row] << i) & CELL0) // dying
+                    else if ((prevredgrid[col][row] << i) & CELL0) // dying
                         pixels[translateAddress(col*8+i, row)].r = lumcolours[LUMEN_STEPS - lumcolour].r;
                     else // if dead
                         pixels[translateAddress(col*8+i, row)].r = 0x00;
+                // GREEN
+                    if ((currgreengrid[col][row] << i) & CELL0) // move to the next bit and check the highest 
+                        if ((prevgreengrid[col][row] << i) & CELL0) // staying alive
+                            pixels[translateAddress(col*8+i, row)].g = lumcolours[LUMEN_STEPS].g;
+                        else pixels[translateAddress(col*8+i, row)].g = lumcolours[lumcolour].g; // arriving
+                    else if ((prevgreengrid[col][row] << i) & CELL0) // dying
+                        pixels[translateAddress(col*8+i, row)].g = lumcolours[LUMEN_STEPS - lumcolour].g;
+                    else // if dead
+                        pixels[translateAddress(col*8+i, row)].g = 0x00;
+                // BLUE
+                    if ((currbluegrid[col][row] << i) & CELL0) // move to the next bit and check the highest 
+                        if ((prevbluegrid[col][row] << i) & CELL0) // staying alive
+                            pixels[translateAddress(col*8+i, row)].b = lumcolours[LUMEN_STEPS].b;
+                        else pixels[translateAddress(col*8+i, row)].b = lumcolours[lumcolour].b; // arriving
+                    else if ((prevbluegrid[col][row] << i) & CELL0) // dying
+                        pixels[translateAddress(col*8+i, row)].b = lumcolours[LUMEN_STEPS - lumcolour].b;
+                    else // if dead
+                        pixels[translateAddress(col*8+i, row)].b = 0x00;
                 }
             }
         }
