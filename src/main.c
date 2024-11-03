@@ -6,9 +6,11 @@
 //#include <string.h> // memcpy
 
 #include <zephyr/kernel.h>
-#include <zephyr/drivers/led_strip.h>
 #include <zephyr/device.h>
+#include <zephyr/drivers/led_strip.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/sensor.h>
+#include <zephyr/sys/util_macro.h> // for LISTIFY
 //#include <zephyr/drivers/spi.h>
 //#include <zephyr/sys/util.h>
 
@@ -25,6 +27,12 @@
 #if DT_NODE_HAS_STATUS_OKAY(SW0_NODE)
 #define BUTTON_TESTING_BREAK
 #endif
+// Zephyr specific - temperature sensor
+#define DIE_TEMP_NODE DT_ALIAS(die_temp0)
+#if !DT_NODE_HAS_STATUS_OKAY(DIE_TEMP_NODE)
+#error "DIE_TEMP status not okay"
+#endif
+
 // Zephyr specific - ksleep() time
 #define DELAY_TIME K_MSEC(100*5)
 #define DELAY_FAST K_MSEC(100*1)
@@ -51,9 +59,8 @@
 #error "Game size bigger than  led chain length"
 #endif
 
-#warning "TODO: bInitGrid() doesn't use srand() so it's always the same"
-#warning "TODO: setupLumcolours() to preprocessor magic"
-#warning "TODO: translateAddress() to preprocessor magic and global static const"
+// not needed - performance is good enough
+//#warning "TODO: translateAddress() to preprocessor magic and global static const"
 
 // Bit definitions
 #define CELL0 0x80 // 0b10000000
@@ -66,12 +73,15 @@
 #define CELL7 0x01 // 0b00000001
 
 // Panel drawing settings
-//#define RGB(_r, _g, _b) { .r = (_r), .g = (_g), .b = (_b) }
 #define MAX_LUMENS 0x08 // max brightness at 0xff
 #define LUMEN_STEPS 8 // number of steps to fade out/fade in in
+#define LUMEN_STEPS_PLUS_BLACK 9 // change this too -.-; it's LUMEN_STEPS + 1 but LISTIFY doesn't allow that
+#define RGB_DIM(bin, _) { .r = (((MAX_LUMENS) / (LUMEN_STEPS))*(bin)), .g = (((MAX_LUMENS) / (LUMEN_STEPS))*(bin)), .b = (((MAX_LUMENS) / (LUMEN_STEPS))*(bin)) }
+
 void setupLumcolours();
 
 // Function prototypes
+uint16_t getRandomSeed(); 
 void bInitGrid(uint8_t (*)[ROWS]);
 void bShowPixels(uint8_t (*)[ROWS], uint8_t (*)[ROWS], uint8_t (*)[ROWS], uint8_t (*)[ROWS], uint8_t (*)[ROWS], uint8_t (*)[ROWS]);
 void bUpdateGrid(uint8_t (*)[ROWS], uint8_t (*)[ROWS]);
@@ -91,7 +101,8 @@ uint8_t testTranslateAddress();
 // Global variables
 // led strip specific
 static const struct device *const strip = DEVICE_DT_GET(STRIP_NODE);
-static struct led_rgb lumcolours[1+LUMEN_STEPS]; // for fade out/fade in; black + rest of the palette
+static struct led_rgb lumcolours[] = { LISTIFY(LUMEN_STEPS_PLUS_BLACK, RGB_DIM, (,)) }; // for fade out/fade in; black + rest of the palette
+//static struct led_rgb lumcolours[1+LUMEN_STEPS]; // for fade out/fade in; black + rest of the palette
 static struct led_rgb pixels[STRIP_NUM_PIXELS]; // to display on led strip; initialized as 0s
 //buffers for game of life
 static uint8_t gbufferred0[COLS][ROWS];
@@ -106,6 +117,8 @@ static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(DT_ALIAS(sw0), gpi
 static struct gpio_callback button_cb_data;
 #endif
 static uint8_t end_testing = 0;
+// die_temp specific
+static const struct device *const sensor = DEVICE_DT_GET(DIE_TEMP_NODE);
 
 int main() {
 
@@ -115,6 +128,8 @@ int main() {
     if (configure_button())
         return 0;
 #endif
+    if (!device_is_ready(sensor))
+        return 0;
     
     // Initialize memory
     uint8_t (*redgameprev)[ROWS] = gbufferred1;
@@ -127,7 +142,7 @@ int main() {
     uint8_t (*bluegamecurr)[ROWS] = gbufferblue0;
     uint8_t (*bluegamenext)[ROWS] = gbufferblue1;
     uint8_t (*swapbuffer)[ROWS];
-    setupLumcolours();
+    //setupLumcolours();
     
     // Testing
 #ifdef BUTTON_TESTING_BREAK
@@ -139,6 +154,7 @@ int main() {
 #endif
 
     // Initialize the grid with random values
+    srand(getRandomSeed());
     bInitGrid(redgamecurr);
     bInitGrid(greengamecurr);
     bInitGrid(bluegamecurr);
@@ -174,6 +190,8 @@ int main() {
     return 0;
 }
 
+
+
 void setupLumcolours() {
     /* example for: 			*
      * MAX_LUMENS == 0x08,		*
@@ -190,6 +208,24 @@ void setupLumcolours() {
         lumcolours[thebin].b = stepsize * thebin;
         
     }
+}
+
+uint16_t getRandomSeed() {
+    /* get LSB from each temp reading		* 
+     * sleep may not be needed, but won't hurt	*/
+    struct sensor_value val;
+    uint16_t ret = 0;
+
+    for (uint8_t i = 0; i < 16; ++i) {
+        // fetch sensor samples
+        if (sensor_sample_fetch(sensor)) continue;
+        if (sensor_channel_get(sensor, SENSOR_CHAN_DIE_TEMP, &val)) continue;
+        ret |= (uint16_t)(val.val2 & (0x00000001)); // least significant bit of the fractional part of the value 
+        ret <<= 1;
+        k_sleep(DELAY_FAST);
+    }
+    return ret;
+    
 }
 
 // Initialize the grid with random values

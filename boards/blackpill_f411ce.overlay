@@ -19,8 +19,13 @@
 	};
 };
 
+&die_temp {
+	status = "okay";
+};
+
 / {
 	aliases {
 		led-strip = &led_strip; /* required by driver */
+		die-temp0 = &die_temp;
 	};
 };
