@@ -51,7 +51,6 @@
 #error "Game size bigger than  led chain length"
 #endif
 
-#warning "TODO: break out of testing using user button"
 #warning "TODO: bInitGrid() doesn't use srand() so it's always the same"
 #warning "TODO: setupLumcolours() to preprocessor magic"
 #warning "TODO: translateAddress() to preprocessor magic and global static const"
@@ -121,7 +120,7 @@ int main() {
     setupLumcolours();
     
     // Testing
-#ifdef BUTTON_TESTING_BERAK
+#ifdef BUTTON_TESTING_BREAK
     end_testing = testPanel();
     end_testing = testTranslateAddress();
 #else // uncomment and reflash to test if not using button
