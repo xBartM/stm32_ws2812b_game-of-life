@@ -67,10 +67,13 @@ diffusor_single = (
     .loft(ruled=True)
     .faces("|Z")
     .shell(-wall_width)
-    .faces(">Y[0] or >Y[1]")
-    .loft(combine='cut')
-    .faces(">Y[0] or >Y[1]")
-    .loft(combine='cut')
+    .edges("((|Y or |X) and <Z)")
+    .edges("<<Y[1] or <<Y[3] or <<X[1] or <<X[3]")
+    .chamfer(wall_width/2)
+#    .faces(">Y[0] or >Y[1]")
+#    .loft(combine='cut')
+#    .faces(">Y[0] or >Y[1]")
+#    .loft(combine='cut')
 )
 
 # Create frontplate
@@ -79,8 +82,15 @@ frontplate = (
     .transformed(offset=(0.0, 
                          0.0,
                          led_height+diffusor_height))
-    .rect(panel_length, panel_width, centered=False)
+#    .rect(panel_length, panel_width, centered=False)
+    .rect(panel_length+wall_width*2, panel_width+wall_width*2, centered=False)
     .extrude(skin_height)
+    .rect(panel_length, panel_width)
+    .rect(panel_length+wall_width*2, panel_width+wall_width*2)
+    .extrude(-(skin_height+diffusor_height+led_height+panel_height+5))
+#    .faces(">Z[2]")
+#    .extrude(skin_height)
+#extrude both ways
 )
 # Populate the panel with LEDs and diffusors
 #leds = []
@@ -90,11 +100,14 @@ for col in range(panel_leds_cols):
 #        led = led_single.translate((panel_length/panel_leds_rows*row, 
 #                                    panel_width/panel_leds_cols*col,
 #                                    0.0))
-        dfsr = diffusor_single.translate((panel_length/panel_leds_rows*row, 
-                                          panel_width/panel_leds_cols*col,
-                                          0.0))
+#        dfsr = diffusor_single.translate((panel_length/panel_leds_rows*row, 
+#                                          panel_width/panel_leds_cols*col,
+#                                          0.0))
+        frontplate = frontplate.union(diffusor_single.translate((panel_length/panel_leds_rows*row, 
+                                                                 panel_width/panel_leds_cols*col,
+                                                                 0.0)))
 #        leds.append(led)
-        dfsrs.append(dfsr)
+#        dfsrs.append(dfsr)
 
 # to save on time use only outer leds
 #for col in range(panel_leds_cols):
@@ -121,13 +134,13 @@ for col in range(panel_leds_cols):
 #    merged_leds = merged_leds.union(l)
 #leds = merged_leds
 
-merged_dfsrs = dfsrs[0]
-for d in dfsrs[1:]:
-    merged_dfsrs = merged_dfsrs.union(d)
-dfsrs = merged_dfsrs
-dfsrs = dfsrs.union(frontplate)
+#merged_dfsrs = dfsrs[0]
+#for d in dfsrs[1:]:
+#    merged_dfsrs = merged_dfsrs.union(d)
+#dfsrs = merged_dfsrs
+#dfsrs = dfsrs.union(frontplate)
 
-dfsrs.export("./mesh.stl")
+frontplate.export("./mesh.stl")
 
 result = led_single
 
