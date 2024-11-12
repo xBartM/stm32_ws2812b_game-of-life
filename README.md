@@ -45,12 +45,27 @@ Feel free to change the target board by swapping it's name in the aforementioned
 west flash
 ```
 For this particular board, you might need to warm it up a little for it to communicate correctly (see [DFU Mode](https://github.com/WeActStudio/WeActStudio.MiniSTM32F4x1#how-to-enter-isp-mode)).  
-Alternatively, install `stm32cubeprogrammer` from official ST [website](https://www.st.com/en/development-tools/stm32cubeprog.html), connect the board via ST-LINK/V2, enter the bootloader (as mentioned above), and run:
+Alternatively, install `stm32cubeprogrammer` from official ST [website](https://www.st.com/en/development-tools/stm32cubeprog.html), connect to the board via ST-LINK/V2, enter the bootloader (as mentioned above), and run:
 ```
 west flash --runner stm32cubeprogrammer
 ```
 
 ## Physical Build
+
+### 3D Printing light diffusion panel
+
+I've 3D printed my diffusion panel out of white semi-transparent PETG. Make sure your print bed is clean or you'll have stains on the most visible part of the panel.  
+Files necessary to print the panel are located in `model3d/` folder.
+1. (Optional) change the code in `model.py` or export the model as `.stl` or `.step` file and import it to the CAD of your choice, to make it a better fit for your use case (take a look at [Endnotes](#endnotes)).
+2. Slice the model using your preferred slicer.
+    * parts are designed so that everything should be printed (every wall and layer)
+    * the model doesn't need supports (max angle is 45 deg; orient it with the flat part facing down)
+    * note that the clarity depends on hotend's temperature and printing (volumetric) speed
+    * ironing (in Cura) might be worth checking out
+3. Print according to your filament and 3D printer spec.
+4. Press in the panel (tolerances should be enough to hold the LED panel within the diffusion panel)
+
+### Connecting the board to the LED Display
 
 The necessary physical connections are straightforward:
 1. Ensure you're **not** powering the LED Panel though the board but rather from the same, external power source.
@@ -66,10 +81,7 @@ If your board has a defined user button, it will enter a "testing" phase:
 1. The first test runs through connected LEDs in order they are physically connected. Click **user button** to break out of this test.
 2. The second test runs through connected LEDs left to right, from top to bottom. Reorient panels if needed to achieve continuity. Click **user button** to break out of this test.
 3. The LED Panel should light up.
-
-| <img src="" /> | 
-|:--:| 
-| *Placeholder* |
+4. At any time you can use **user_button** to freeze an animation in place.
 
 ## Code Quirks
 
@@ -88,6 +100,7 @@ If your board has a defined user button, it will enter a "testing" phase:
 * The program should use threads for each colour, which would clean up the code and provide finer control over fading in or out colours.
 * The `translateAddress()` function should be changed to a static array in memory instead of computing desired positions every time they are needed.
 * Running games smaller than 32x16 (or 16x16) should be easy; though untested on LED Panel, it worked well in terminal.
+* In order to seamlessly connect the panels one shoud remove half of the thickness of certain (depending on the panel configuration) walls.
 
 ## State of the Project
 
@@ -96,7 +109,7 @@ If your board has a defined user button, it will enter a "testing" phase:
 * Displaying GoL on the panel - **done**
 * Displaying all three colours at the same time - **done**
 * Randomized seed every time the panel is powered on - **done**
-* Design and 3D print proper enclosure with light diffusion - **in progress**
-* Finish up README.md - **to do**
+* Design and 3D print proper enclosure with light diffusion - **done**
+* Finish up README.md - **in progress**
 
 [^1]: coded to support one or two 16x16 grid panels
