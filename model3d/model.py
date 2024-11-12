@@ -75,8 +75,8 @@ diffusor_single = (
 # Create frontplate
 frontplate = (
     cq.Workplane("XY")
-    .transformed(offset=(0.0, 
-                         0.0,
+    .transformed(offset=(-wall_width, 
+                         -wall_width,
                          led_height+diffusor_height))
     .rect(panel_length+wall_width*2, panel_width+wall_width*2, centered=False)
     .extrude(skin_height)
