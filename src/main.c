@@ -116,7 +116,7 @@ static uint8_t gbufferblue1[COLS][ROWS];
 static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(DT_ALIAS(sw0), gpios, {0});
 static struct gpio_callback button_cb_data;
 #endif
-static uint8_t end_testing = 0;
+static uint8_t button_state = 0;
 // die_temp specific
 static const struct device *const sensor = DEVICE_DT_GET(DIE_TEMP_NODE);
 
@@ -146,8 +146,8 @@ int main() {
     
     // Testing
 #ifdef BUTTON_TESTING_BREAK
-    end_testing = testPanel();
-    end_testing = testTranslateAddress();
+    button_state = testPanel();
+    button_state = testTranslateAddress();
 #else // uncomment and reflash to test if not using button
     //testPanel();
     //testTranslateAddress();
@@ -183,6 +183,9 @@ int main() {
 	bluegamenext = swapbuffer;
 	
 	// Sleep
+#ifdef BUTTON_TESTING_BREAK
+        while (button_state) k_sleep(DELAY_TIME);
+#endif
         k_sleep(DELAY_NONE);
 
     }
@@ -363,7 +366,7 @@ uint8_t testPanel() {
             k_sleep(DELAY_NONE);
             pixels[addr].r = 0x00;
             
-            if (end_testing) return 0;
+            if (button_state) return 0;
 
         }
     }
@@ -384,7 +387,7 @@ uint8_t testTranslateAddress() {
                 k_sleep(DELAY_NONE);        
                 pixels[translateAddress(col, row)].r = 0x00;
                 
-                if (end_testing) return 0;
+                if (button_state) return 0;
             }
     }
 }
@@ -408,6 +411,6 @@ int8_t configure_button() {
 void button_pressed_callback(const struct device *dev, struct gpio_callback *cb,
 		    uint32_t pins)
 {
-	end_testing = 1;
+	button_state ^= 1;
 }
 #endif
